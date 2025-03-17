@@ -91,14 +91,21 @@ function test1()
     end
 end
 
-function quantizeImage(filename, pathname, divisions)
+function quantizeImage(filename, pathname, divisions, mode)
     % Load the image
     fullFilePath = fullfile(pathname, filename);
     image = imread(fullFilePath);
 
-
-    quantizedImage = quantizeRGB(image, divisions);
-
+    if strcmp(mode, 'HSV')
+        imageHSV = rgb2hsv(image);
+        quantizedHSV = quantizeHSV(imageHSV, divisions);
+        quantizedImage = hsv2rgb(quantizedHSV);
+        quantizedImage = uint8(round(quantizedImage * 255));
+    elseif strcmp(mode, 'RGB')
+        quantizedImage = quantizeRGB(image, divisions);
+    else
+        error('Invalid mode. Use "RGB" or "HSV".');
+    end    
 
     % Calculate PSNR
     psnrValue = psnr(quantizedImage, image);
@@ -113,7 +120,7 @@ function quantizeImage(filename, pathname, divisions)
 
     % Save the quantized image
     [pathstr, name, ext] = fileparts(fullFilePath);
-    saveFilename = fullfile(pathstr, [name, '_RGB', '_quantized_', num2str(divisions(1)), 'x', num2str(divisions(2)), 'x', num2str(divisions(3)), ext]);
+    saveFilename = fullfile(pathstr, [name, '_', mode, '_quantized_', num2str(divisions(1)), 'x', num2str(divisions(2)), 'x', num2str(divisions(3)), ext]);
     imwrite(quantizedImage, saveFilename);
 end
 
@@ -128,6 +135,29 @@ function quantizedImage = quantizeRGB(imageRGB, divisions)
     end
 end
 
+function quantizedHSV = quantizeHSV(imageHSV, divisions)
+    % Quantize HSV image according to specified divisions
+    quantizedHSV = imageHSV;
+
+    % Quantize H, S, V channels directly using a loop
+    for channel = 1:3
+        levels = linspace(0, 1, divisions(channel));
+        quantizedHSV(:, :, channel) = levels(imquantize(imageHSV(:, :, channel), levels));
+    end
+
+    % Handle achromatic colors (S=0) for 10x5x5+6
+    if isequal(divisions, [10, 5, 5])
+        achromaticIndices = find(imageHSV(:, :, 2) == 0);
+        if ~isempty(achromaticIndices)
+            levelsAchromatic = linspace(0, 1, 6); % 6 achromatic levels
+            validIndices = achromaticIndices(achromaticIndices <= size(imageHSV, 1));
+            if ~isempty(validIndices)
+                quantizedHSV(validIndices, 3) = levelsAchromatic(imquantize(imageHSV(validIndices, 3), levelsAchromatic));
+            end
+        end
+    end
+end
+
 function testQuantization()
     % Test the quantization functions
     [filename, pathname] = uigetfile({'*.jpg;*.png', 'Image Files (*.jpg, *.png)'}, 'Select an RGB Image');
@@ -139,6 +169,11 @@ function testQuantization()
     divisionsList = {[2, 2, 2], [4, 4, 4], [4, 6, 4], [8, 8, 4]};
     for i = 1:length(divisionsList)
         quantizeImage(filename, pathname, divisionsList{i}, 'RGB');
+    end
+
+    divisionsList = {[2, 2, 2], [4, 4, 4], [4, 6, 4], [10, 5, 5]};
+    for i = 1:length(divisionsList)
+        quantizeImage(filename, pathname, divisionsList{i}, 'HSV');
     end
 end
 
