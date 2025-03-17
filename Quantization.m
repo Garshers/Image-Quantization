@@ -91,4 +91,56 @@ function test1()
     end
 end
 
+function quantizeImage(filename, pathname, divisions)
+    % Load the image
+    fullFilePath = fullfile(pathname, filename);
+    image = imread(fullFilePath);
+
+
+    quantizedImage = quantizeRGB(image, divisions);
+
+
+    % Calculate PSNR
+    psnrValue = psnr(quantizedImage, image);
+
+    % Calculate unique colors
+    numUniqueColors = uniqueColorCounter(quantizedImage);
+
+    % Display results
+    fprintf('\nDivisions: %dx%dx%d\n', divisions(1), divisions(2), divisions(3));
+    fprintf('PSNR: %.2f dB\n', psnrValue);
+    fprintf('Number of unique colors: %d\n', numUniqueColors);
+
+    % Save the quantized image
+    [pathstr, name, ext] = fileparts(fullFilePath);
+    saveFilename = fullfile(pathstr, [name, '_RGB', '_quantized_', num2str(divisions(1)), 'x', num2str(divisions(2)), 'x', num2str(divisions(3)), ext]);
+    imwrite(quantizedImage, saveFilename);
+end
+
+function quantizedImage = quantizeRGB(imageRGB, divisions)
+    quantizedImage = imageRGB;
+    for channel = 1:3
+        % Calculate quantization levels
+        levels = round(linspace(0, 255, divisions(channel)));
+        % Quantize the channel and convert indices to color values directly
+        % (:, :, channel) means "take all rows, all columns, and only the specified channel." 
+        quantizedImage(:, :, channel) = levels(imquantize(imageRGB(:, :, channel), levels));
+    end
+end
+
+function testQuantization()
+    % Test the quantization functions
+    [filename, pathname] = uigetfile({'*.jpg;*.png', 'Image Files (*.jpg, *.png)'}, 'Select an RGB Image');
+    if isequal(filename, 0)
+        disp('User canceled file selection.');
+        return;
+    end
+
+    divisionsList = {[2, 2, 2], [4, 4, 4], [4, 6, 4], [8, 8, 4]};
+    for i = 1:length(divisionsList)
+        quantizeImage(filename, pathname, divisionsList{i}, 'RGB');
+    end
+end
+
 test1();
+testQuantization();
