@@ -38,11 +38,11 @@ end
 
 function uniqueCount = uniqueColorCounter(image)
     pixels = reshape(image, [], 3);
-    pixelsSorted = sortrows(pixels); % Sort pixels
+    pixelsSorted = sortrows(pixels); % Sort pixels red -> green -> blue
     numPixels = size(pixelsSorted, 1);
-    uniqueCount = 0;
+    uniqueCount = 1;
     for i = 2:numPixels
-        if ~isequal(pixelsSorted(i, :), pixelsSorted(i-1, :))
+        if ~isequal(pixelsSorted(i, :), pixelsSorted(i-1, :)) % If prev is not eq curr
           uniqueCount = uniqueCount + 1;
         end
     end
@@ -126,12 +126,17 @@ end
 
 function quantizedImage = quantizeRGB(imageRGB, divisions)
     quantizedImage = imageRGB;
+
     for channel = 1:3
         % Calculate quantization levels
         levels = round(linspace(0, 255, divisions(channel)));
+        
+        % Shifting to round to the nearest
+        shiftedImage = imageRGB(:, :, channel) - (levels(2) - levels(1)) / 2;
+        
         % Quantize the channel and convert indices to color values directly
         % (:, :, channel) means "take all rows, all columns, and only the specified channel." 
-        quantizedImage(:, :, channel) = levels(imquantize(imageRGB(:, :, channel), levels));
+        quantizedImage(:, :, channel) = levels(imquantize(shiftedImage, levels));
     end
 end
 
@@ -142,18 +147,17 @@ function quantizedHSV = quantizeHSV(imageHSV, divisions)
     % Quantize H, S, V channels directly using a loop
     for channel = 1:3
         levels = linspace(0, 1, divisions(channel));
-        quantizedHSV(:, :, channel) = levels(imquantize(imageHSV(:, :, channel), levels));
+        shiftedImage = imageHSV(:, :, channel) - (levels(2) - levels(1)) / 2;
+        quantizedHSV(:, :, channel) = levels(imquantize(shiftedImage, levels));
     end
 
-    % Handle achromatic colors (S=0) for 10x5x5+6
-    if isequal(divisions, [10, 5, 5])
-        achromaticIndices = find(imageHSV(:, :, 2) == 0);
-        if ~isempty(achromaticIndices)
-            levelsAchromatic = linspace(0, 1, 6); % 6 achromatic levels
-            validIndices = achromaticIndices(achromaticIndices <= size(imageHSV, 1));
-            if ~isempty(validIndices)
-                quantizedHSV(validIndices, 3) = levelsAchromatic(imquantize(imageHSV(validIndices, 3), levelsAchromatic));
-            end
+    % Handle achromatic colors
+    achromaticIndices = find(imageHSV(:, :, 2) == 0);
+    if ~isempty(achromaticIndices)
+        levelsAchromatic = linspace(0, 1, 6); % 6 achromatic levels
+        validIndices = achromaticIndices(achromaticIndices <= size(imageHSV, 1));
+        if ~isempty(validIndices)
+            quantizedHSV(validIndices, 3) = levelsAchromatic(imquantize(imageHSV(validIndices, 3), levelsAchromatic));
         end
     end
 end
@@ -177,5 +181,5 @@ function testQuantization()
     end
 end
 
-test1();
+%test1();
 testQuantization();
